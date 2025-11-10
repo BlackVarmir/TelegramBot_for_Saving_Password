@@ -9,6 +9,8 @@ from cryptography.fernet import Fernet
 import base64
 import hashlib
 import math
+import random
+import string
 
 # Налаштування логування
 logging.basicConfig(
@@ -17,7 +19,7 @@ logging.basicConfig(
 )
 
 # Константи для станів розмови
-CHOOSING_ACTION, ADDING_SERVICE, CHOOSING_CAESAR, ADDING_PASSWORD, SEARCHING, DELETING, SETTING_SHIFT = range(7)
+CHOOSING_ACTION, ADDING_SERVICE, CHOOSING_CAESAR, ADDING_PASSWORD, SEARCHING, DELETING, SETTING_SHIFT, GENERATING_PASSWORD = range(8)
 
 # Зсув для шифру Цезаря (за замовчуванням 3)
 CAESAR_SHIFT = 3
@@ -66,6 +68,20 @@ def caesar_encrypt(text, shift=3):
             result += char
     return result
 
+# Генерація пароля в стилі Apple
+def generate_apple_style_password():
+    # Дозволені символи (без 0, O, I, l для уникнення плутанини)
+    letters = [c for c in string.ascii_letters if c not in 'OIl']
+    digits = [d for d in string.digits if d != '0']
+    allowed_chars = letters + digits
+    # Генеруємо 5 груп по 4 символи
+    groups = []
+    for _ in range(5):
+        group = ''.join(random.choice(allowed_chars) for _ in range(6))
+        groups.append(group)
+    # Об'єднуємо групи дефісами
+    return '-'.join(groups)
+
 # Вибір застосування шифру Цезаря
 async def choose_caesar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -80,9 +96,45 @@ async def choose_caesar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return CHOOSING_CAESAR
 
     context.user_data['use_caesar'] = (choice == "Так")
-    await update.message.reply_text(f"Тепер введіть пароль для {context.user_data['service']}:",
-                                    reply_markup=ReplyKeyboardRemove())
-    return ADDING_PASSWORD
+    if context.user_data.get('generated_password'):
+        # Якщо пароль згенерований, переходимо до збереження
+        password = context.user_data['generated_password']
+        service = context.user_data['service']
+        use_caesar = context.user_data['use_caesar']
+        final_password = caesar_encrypt(password) if use_caesar else password
+
+        passwords = load_passwords(user_id)
+        passwords[service] = final_password
+
+        if save_passwords(passwords, user_id):
+            if use_caesar:
+                await update.message.reply_text(
+                    f"Пароль для {service} успішно зашифровано і збережено!\n\n"
+                    f"Оригінальний пароль: {password}\n"
+                    f"Зашифрований пароль (використовуйте цей): {final_password}\n\n"
+                    f"Зсув Цезаря: {CAESAR_SHIFT}",
+                    reply_markup=ReplyKeyboardRemove()
+                )
+            else:
+                await update.message.reply_text(
+                    f"Пароль для {service} успішно збережено без шифрування Цезаря!\n\n"
+                    f"Пароль: {final_password}",
+                    reply_markup=ReplyKeyboardRemove()
+                )
+        else:
+            await update.message.reply_text("Виникла помилка при збереженні пароля. Спробуйте ще раз.",
+                                            reply_markup=ReplyKeyboardRemove())
+
+        # Очищення тимчасових даних
+        context.user_data.pop('service', None)
+        context.user_data.pop('use_caesar', None)
+        context.user_data.pop('generated_password', None)
+        return await start(update, context)
+    else:
+        # Якщо пароль не згенерований, просимо ввести пароль
+        await update.message.reply_text(f"Тепер введіть пароль для {context.user_data['service']}:",
+                                        reply_markup=ReplyKeyboardRemove())
+        return ADDING_PASSWORD
 
 # Отримання пароля з урахуванням вибору шифру Цезаря
 async def add_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -124,6 +176,25 @@ async def add_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.pop('use_caesar', None)
     return await start(update, context)
 
+# Обробка генерації пароля
+async def generate_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not check_access(user_id):
+        await update.message.reply_text("Вибачте, у вас немає доступу до цього бота.",
+                                        reply_markup=ReplyKeyboardRemove())
+        return ConversationHandler.END
+
+    # Генеруємо пароль
+    generated_password = generate_apple_style_password()
+    context.user_data['generated_password'] = generated_password
+
+    await update.message.reply_text(
+        f"Згенерований пароль: {generated_password}\n\n"
+        "Введіть назву сервісу для збереження цього пароля:",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    return ADDING_SERVICE
+
 # Команда /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -131,7 +202,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
             ["Додати пароль", "Знайти пароль"],
             ["Видалити пароль", "Список всіх паролів"],
-            ["Налаштувати шифр Цезаря"]
+            ["Згенерувати пароль", "Налаштувати шифр Цезаря"]
         ]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
         # Для callback-запитів надсилаємо нове повідомлення
@@ -182,7 +253,7 @@ async def show_passwords_page(update: Update, context: ContextTypes.DEFAULT_TYPE
                 reply_markup=ReplyKeyboardMarkup([
                     ["Додати пароль", "Знайти пароль"],
                     ["Видалити пароль", "Список всіх паролів"],
-                    ["Налаштувати шифр Цезаря"]
+                    ["Згенерувати пароль", "Налаштувати шифр Цезаря"]
                 ], resize_keyboard=True, one_time_keyboard=False)
             )
         else:
@@ -195,7 +266,7 @@ async def show_passwords_page(update: Update, context: ContextTypes.DEFAULT_TYPE
                 reply_markup=ReplyKeyboardMarkup([
                     ["Додати пароль", "Знайти пароль"],
                     ["Видалити пароль", "Список всіх паролів"],
-                    ["Налаштувати шифр Цезаря"]
+                    ["Згенерувати пароль", "Налаштувати шифр Цезаря"]
                 ], resize_keyboard=True, one_time_keyboard=False)
             )
         return CHOOSING_ACTION
@@ -307,6 +378,8 @@ async def action_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return SETTING_SHIFT
     elif choice == "Список всіх паролів":
         return await show_passwords_page(update, context, context.user_data.get('passwords_page', 0))
+    elif choice == "Згенерувати пароль":
+        return await generate_password(update, context)
     else:
         await update.message.reply_text("Будь ласка, оберіть дію з клавіатури.")
         return CHOOSING_ACTION
@@ -455,6 +528,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.pop('service', None)
     context.user_data.pop('use_caesar', None)
     context.user_data.pop('passwords_page', None)
+    context.user_data.pop('generated_password', None)
 
     await update.message.reply_text("Операцію скасовано.", reply_markup=ReplyKeyboardRemove())
     return await start(update, context)
@@ -480,7 +554,8 @@ def main():
             ADDING_PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_password)],
             SEARCHING: [MessageHandler(filters.TEXT & ~filters.COMMAND, search_password)],
             DELETING: [MessageHandler(filters.TEXT & ~filters.COMMAND, delete_password)],
-            SETTING_SHIFT: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_caesar_shift)]
+            SETTING_SHIFT: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_caesar_shift)],
+            GENERATING_PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_service)]
         },
         fallbacks=[CommandHandler('cancel', cancel)]
     )
