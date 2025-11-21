@@ -4,7 +4,7 @@ A secure Telegram bot for storing and managing passwords with encryption capabil
 
 ## Features
 
-- 🔐 **Secure Password Storage** - Passwords are encrypted using Fernet encryption (AES 128-bit)
+- 🔐 **Secure Password Storage** - Passwords are encrypted using Fernet encryption (AES 128-bit CBC with HMAC authentication)
 - 🔑 **Caesar Cipher Enhancement** - Optional additional encryption layer using Caesar cipher
 - 🎲 **Password Generator** - Generate strong Apple-style passwords (30 characters with hyphens)
 - 🔍 **Password Search** - Quickly find saved passwords by service name
@@ -24,7 +24,7 @@ A secure Telegram bot for storing and managing passwords with encryption capabil
 
 ## Requirements
 
-- Python 3.7+
+- Python 3.8+
 - python-telegram-bot
 - cryptography
 - uuid (built-in)
@@ -56,11 +56,12 @@ python main.py
 
 ### Getting Your UUID
 
-1. Start the bot for the first time (with any UUID in `ALLOWED_UUID`)
-2. Send `/my_uuid` command to the bot
-3. Copy your generated UUID
-4. Update the `ALLOWED_UUID` constant in `main.py` with your UUID
-5. Restart the bot
+1. Temporarily set `ALLOWED_UUID` in `main.py` to your Telegram user ID (you can find it by messaging [@userinfobot](https://t.me/userinfobot))
+2. Start the bot
+3. Send `/my_uuid` command to the bot
+4. Copy your generated UUID from the bot's response
+5. Update the `ALLOWED_UUID` constant in `main.py` with your UUID
+6. Restart the bot
 
 ### Getting Bot Token
 
@@ -136,7 +137,7 @@ Passwords are stored in `passwords.json` file:
 1. **Bot Token**: Keep your bot token secret. Never commit it to version control.
 2. **UUID**: Keep your UUID private to prevent unauthorized access.
 3. **Passwords File**: The `passwords.json` file should be kept secure and backed up regularly.
-4. **Telegram Security**: Remember that messages in Telegram are visible to Telegram servers.
+4. **Telegram Security**: Messages are encrypted in transit but stored on Telegram's servers. Use the bot only in private chats, not in groups.
 5. **Local Security**: Ensure your server/computer running the bot is secure.
 6. **Backup**: Regularly backup your `passwords.json` file.
 
