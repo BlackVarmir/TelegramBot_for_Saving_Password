@@ -1,0 +1,24 @@
+# Секрети — НІКОЛИ не комітити!
+.env
+
+# Зашифроване сховище паролів
+vault.json
+vault.json.tmp
+passwords.json
+
+# Логи
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Тести / кеш
+.pytest_cache/
+.cache/
+
+# IDE
+.idea/
+.vscode/

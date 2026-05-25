@@ -1,0 +1,29 @@
+# ══════════════════════════════════════════════════════════════
+#  docker-compose.yml — Локальне розгортання бота
+# ══════════════════════════════════════════════════════════════
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: password_manager_bot
+    restart: unless-stopped
+
+    # Змінні середовища з .env
+    env_file:
+      - .env
+
+    # Зберігаємо зашифроване сховище між перезапусками
+    volumes:
+      - vault_data:/app/data
+
+    networks:
+      - bot_network
+
+volumes:
+  vault_data:
+    driver: local
+
+networks:
+  bot_network:
+    driver: bridge
