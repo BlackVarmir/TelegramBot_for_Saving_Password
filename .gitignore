@@ -1,10 +1,12 @@
 # Секрети — НІКОЛИ не комітити!
 .env
 
-# Зашифроване сховище паролів
+# Старе файлове сховище / локальна SQLite БД
+passwords.json
 vault.json
 vault.json.tmp
-passwords.json
+*.db
+*.sqlite3
 
 # Логи
 *.log

@@ -18,8 +18,8 @@ COPY . .
 RUN useradd -m -u 1000 botuser && chown -R botuser:botuser /app
 USER botuser
 
-# Директорія для сховища (монтується як volume)
+# Директорія для локальної SQLite БД (якщо не використовується Postgres)
 RUN mkdir -p /app/data
-ENV VAULT_FILE=/app/data/vault.json
+ENV DATABASE_URL=sqlite+aiosqlite:///data/passwords.db
 
 CMD ["python", "main.py"]

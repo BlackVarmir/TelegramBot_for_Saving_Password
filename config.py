@@ -40,8 +40,8 @@ class Config:
     # Хто має доступ до бота (числові Telegram-ID)
     allowed_user_ids: tuple[int, ...]
 
-    # Шлях до зашифрованого сховища
-    vault_file: str = "vault.json"
+    # Підключення до БД (PostgreSQL у проді, SQLite локально)
+    database_url: str = "sqlite+aiosqlite:///passwords.db"
 
     # Стандартний зсув шифру Цезаря
     default_caesar_shift: int = 3
@@ -83,7 +83,7 @@ def load_config() -> Config:
         bot_token=required["BOT_TOKEN"],
         fernet_key=required["FERNET_KEY"],
         allowed_user_ids=allowed,
-        vault_file=os.getenv("VAULT_FILE", "vault.json"),
+        database_url=os.getenv("DATABASE_URL", "sqlite+aiosqlite:///passwords.db"),
         default_caesar_shift=shift,
     )
 

@@ -5,15 +5,16 @@
 
 > ⚠️ **Це навчальний проєкт, а не заміна професійним менеджерам паролів.**
 > Шифр Цезаря — НЕ криптографічний захист. Реальну конфіденційність забезпечує
-> Fernet-шифрування файлу сховища.
+> Fernet-шифрування паролів перед записом у базу даних.
 
 ## Можливості
 
-- 🔐 Зашифроване сховище (Fernet, AES-128-CBC + HMAC)
+- 🔐 Паролі зберігаються в БД зашифрованими (Fernet, AES-128-CBC + HMAC)
+- 🗄 PostgreSQL у проді або SQLite локально (через `DATABASE_URL`)
 - 🎲 Генератор надійних паролів у стилі Apple
 - 🔍 Пошук, 📋 перегляд (з пагінацією), ✏️ додавання та видалення паролів
 - 🔁 Опційний шифр Цезаря з налаштовуваним зсувом (1–25)
-- 🔒 Контроль доступу за числовим Telegram ID
+- 🔒 Контроль доступу за числовим Telegram ID; дані прив'язані до власника
 
 ## Структура проєкту
 
@@ -21,15 +22,16 @@
 TelegramBot_for_Saving_Password/
 ├── main.py                 # точка входу: ConversationHandler і запуск polling
 ├── config.py               # завантаження конфігу з .env
-├── deps.py                 # спільні синглтони (encryptor, vault)
+├── deps.py                 # спільні синглтони (encryptor, db)
 ├── states.py               # стани розмови
 ├── keyboards.py            # клавіатури
 ├── security/
-│   ├── encryption.py       # Fernet-шифрування сховища
+│   ├── encryption.py       # Fernet-шифрування значень
 │   ├── caesar.py           # шифр Цезаря + генератор паролів
 │   └── access.py           # контроль доступу
-├── storage/
-│   └── vault.py            # зашифроване сховище паролів
+├── database/
+│   ├── models.py           # SQLAlchemy-моделі (passwords, user_settings)
+│   └── repository.py       # async CRUD + DatabaseManager
 ├── handlers/
 │   ├── common.py           # /start, /cancel, головне меню
 │   ├── menu.py             # маршрутизація меню + список з пагінацією
@@ -63,21 +65,29 @@ TelegramBot_for_Saving_Password/
 
 4. Вписати `BOT_TOKEN` (від [@BotFather](https://t.me/BotFather)).
 
-5. Дізнатися свій Telegram ID і додати у `ALLOWED_USER_IDS`:
+5. Налаштувати `DATABASE_URL`:
+   - PostgreSQL: `postgresql+asyncpg://user:pass@host:5432/dbname`
+   - SQLite (локально): `sqlite+aiosqlite:///passwords.db`
+
+   Таблиці створюються автоматично при першому запуску.
+
+6. Дізнатися свій Telegram ID і додати у `ALLOWED_USER_IDS`:
    запустіть бота, надішліть `/whoami`, скопіюйте показаний ID у `.env`,
    перезапустіть бота.
 
-6. Запуск:
+7. Запуск:
    ```bash
    python main.py
    ```
 
-### Docker
+### Docker (бот + PostgreSQL)
 
 ```bash
 docker compose up -d --build
 ```
-Сховище зберігається у volume `vault_data` між перезапусками.
+Піднімає сервіс `postgres` і бот; дані БД зберігаються у volume `postgres_data`
+між перезапусками. Логін/пароль/назву БД задайте у `.env`
+(`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`).
 
 ## Команди
 
@@ -94,12 +104,12 @@ pytest tests/
 
 ## Міграція зі старої версії
 
-Раніше сховище шифрувалося ключем, що виводився з відкритого UUID у коді —
-тобто фактично без захисту. Щоб перенести старі дані у нове сховище під новим
-`FERNET_KEY`:
+Раніше дані лежали у файлі `passwords.json`, зашифрованому ключем, що виводився
+з відкритого UUID у коді, — тобто фактично без захисту. Щоб перенести старі
+записи в базу даних під новим `FERNET_KEY` (вкажіть Telegram ID власника):
 
 ```bash
-python migrate_legacy.py            # читає passwords.json
+python migrate_legacy.py <telegram_id> [passwords.json]
 ```
 
 ⚠️ Паролі зі старого `passwords.json` слід вважати скомпрометованими — після
@@ -108,10 +118,10 @@ python migrate_legacy.py            # читає passwords.json
 ## Безпека
 
 - Токен бота і ключ шифрування зберігаються лише в `.env` (він у `.gitignore`).
-- Файл сховища (`vault.json`) шифрується і не комітиться.
+- Паролі шифруються (Fernet) перед записом у БД; у БД немає відкритого тексту.
+- Без `FERNET_KEY` дані з БД не розшифрувати — зберігайте його надійно й окремо
+  від резервних копій БД.
 - Використовуйте бота лише в приватних чатах, не в групах.
-- Регулярно робіть резервні копії `.env` і `vault.json` (без них дані не
-  відновити).
 
 ## Ліцензія
 

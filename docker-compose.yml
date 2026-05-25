@@ -1,5 +1,5 @@
 # ══════════════════════════════════════════════════════════════
-#  docker-compose.yml — Локальне розгортання бота
+#  docker-compose.yml — Бот + PostgreSQL
 # ══════════════════════════════════════════════════════════════
 services:
   bot:
@@ -8,20 +8,37 @@ services:
       dockerfile: Dockerfile
     container_name: password_manager_bot
     restart: unless-stopped
-
-    # Змінні середовища з .env
     env_file:
       - .env
+    environment:
+      # Перевизначаємо DATABASE_URL, щоб бот ходив у сервіс postgres
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-botuser}:${POSTGRES_PASSWORD:-botpass}@postgres:5432/${POSTGRES_DB:-passwords}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - bot_network
 
-    # Зберігаємо зашифроване сховище між перезапусками
+  postgres:
+    image: postgres:16-alpine
+    container_name: password_manager_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-passwords}
+      POSTGRES_USER: ${POSTGRES_USER:-botuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-botpass}
     volumes:
-      - vault_data:/app/data
-
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-botuser} -d ${POSTGRES_DB:-passwords}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - bot_network
 
 volumes:
-  vault_data:
+  postgres_data:
     driver: local
 
 networks:

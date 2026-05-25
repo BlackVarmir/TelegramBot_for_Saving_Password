@@ -8,7 +8,7 @@ import logging
 from telegram import Update, ReplyKeyboardRemove
 from telegram.ext import ContextTypes
 
-from deps import vault
+from deps import db
 from handlers.common import start
 from keyboards import yes_no, YES, NO
 from security.access import require_access
@@ -20,13 +20,14 @@ logger = logging.getLogger(__name__)
 
 async def _save_and_report(update: Update, context: ContextTypes.DEFAULT_TYPE, password: str):
     """Шифрує (за потреби), зберігає пароль і повідомляє користувача."""
+    uid = update.effective_user.id
     service = context.user_data["service"]
     use_caesar = context.user_data.get("use_caesar", True)
-    shift = vault.get_caesar_shift()
+    shift = await db.get_caesar_shift(uid)
     final_password = caesar_encrypt(password, shift) if use_caesar else password
 
     try:
-        vault.set_password(service, final_password)
+        await db.set_password(uid, service, final_password)
     except Exception as e:
         logger.error(f"Помилка при збереженні пароля: {e}")
         await update.message.reply_text(

@@ -8,7 +8,7 @@ from telegram import Update, ReplyKeyboardRemove
 from telegram.ext import ContextTypes
 
 from config import config
-from deps import vault
+from deps import db
 from handlers import add
 from handlers.common import start
 from keyboards import (
@@ -47,8 +47,9 @@ async def action_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return State.DELETING
 
     if choice == BTN_CAESAR:
+        shift = await db.get_caesar_shift(update.effective_user.id)
         await update.message.reply_text(
-            f"Поточне значення зсуву для шифру Цезаря: {vault.get_caesar_shift()}\n"
+            f"Поточне значення зсуву для шифру Цезаря: {shift}\n"
             "Введіть нове значення зсуву (ціле число 1-25):",
             reply_markup=ReplyKeyboardRemove(),
         )
@@ -65,7 +66,7 @@ async def action_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def show_passwords_page(update: Update, context: ContextTypes.DEFAULT_TYPE, page: int):
-    passwords = vault.get_passwords()
+    passwords = await db.list_passwords(update.effective_user.id)
 
     if not passwords:
         text = "У вас ще немає збережених паролів."

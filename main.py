@@ -13,6 +13,7 @@ from telegram.ext import (
 )
 
 from config import config
+from deps import db
 from states import State
 from handlers import common, menu, add, manage, settings
 
@@ -29,9 +30,23 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+async def _on_startup(application: Application) -> None:
+    await db.init_db()
+
+
+async def _on_shutdown(application: Application) -> None:
+    await db.close()
+
+
 def build_application() -> Application:
     """Створює та конфігурує Application з усіма хендлерами."""
-    application = ApplicationBuilder().token(config.bot_token).build()
+    application = (
+        ApplicationBuilder()
+        .token(config.bot_token)
+        .post_init(_on_startup)
+        .post_shutdown(_on_shutdown)
+        .build()
+    )
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", common.start)],

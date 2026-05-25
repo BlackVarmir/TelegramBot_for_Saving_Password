@@ -6,7 +6,7 @@ import logging
 from telegram import Update, ReplyKeyboardRemove
 from telegram.ext import ContextTypes
 
-from deps import vault
+from deps import db
 from handlers.common import start
 from security.access import require_access, has_access
 from security.caesar import caesar_encrypt
@@ -32,8 +32,9 @@ async def set_caesar_shift(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return State.SETTING_SHIFT
 
-    old_shift = vault.get_caesar_shift()
-    vault.set_caesar_shift(new_shift)
+    uid = update.effective_user.id
+    old_shift = await db.get_caesar_shift(uid)
+    await db.set_caesar_shift(uid, new_shift)
     await update.message.reply_text(
         f"Зсув для шифру Цезаря змінено з {old_shift} на {new_shift}.\n\n"
         f"ВАЖЛИВО: Нові паролі шифруватимуться зі зсувом {new_shift}, "
@@ -67,7 +68,7 @@ async def strengthen_password(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
     original = " ".join(context.args)
-    shift = vault.get_caesar_shift()
+    shift = await db.get_caesar_shift(update.effective_user.id)
     transformed = caesar_encrypt(original, shift)
     await update.message.reply_text(
         f"Оригінальний пароль: {original}\n"
